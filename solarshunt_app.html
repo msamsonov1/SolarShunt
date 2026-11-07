@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolarShunt | SSPR Solar Array Thermal Hotspot Locator</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- MathJax v3 Bulletproof Configuration -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <!-- Typography & Custom Theme Overrides -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #05070d;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    
+    .font-mono-data {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    
+    .formula-box {
+      background: #030712;
+      border: 1px solid #1f2937;
+      border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      overflow-x: auto;
+      color: #38bdf8;
+    }
+    
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #080c14;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1f2937;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #374151;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#05070d] text-slate-100">
+
+  <!-- Top Global Header -->
+  <header class="border-b border-slate-800 bg-[#080c14]/90 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-cyan-600 via-sky-500 to-amber-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+          <i data-lucide="sun-medium" class="w-6 h-6 text-slate-950"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-lg tracking-tight bg-gradient-to-r from-cyan-300 via-sky-200 to-amber-300 bg-clip-text text-transparent">SolarShunt</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono-data">SSPR-v2.6</span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">Sequential Shunt Array Thermal Breakdown Interceptor & Closed-Loop Load Allocator</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center space-x-1 sm:space-x-2">
+        <button id="tabBtnSim" onclick="switchTab('sim')" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center space-x-1.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+          <i data-lucide="gauge" class="w-4 h-4"></i>
+          <span>Telemetry & HUD</span>
+        </button>
+        <button id="tabBtnPhysics" onclick="switchTab('physics')" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center space-x-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
+          <i data-lucide="atom" class="w-4 h-4"></i>
+          <span>Physics & Math</span>
+        </button>
+        <button id="tabBtnProposal" onclick="switchTab('proposal')" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center space-x-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
+          <i data-lucide="file-text" class="w-4 h-4"></i>
+          <span>NASA Proposal</span>
+        </button>
+        <button id="tabBtnARR" onclick="switchTab('arr')" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center space-x-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
+          <i data-lucide="trending-up" class="w-4 h-4"></i>
+          <span>Commercial ARR</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content Body -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+    <!-- ========================================== -->
+    <!-- TAB 1: LIVE SIMULATION & TELEMETRY HUD      -->
+    <!-- ========================================== -->
+    <div id="viewSim" class="space-y-6">
+      
+      <!-- Top Status Banner & Telemetry Badges -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-3.5 backdrop-blur flex items-center justify-between">
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wider font-medium">Bus Voltage ($V_{\text{bus}}$)</div>
+            <div id="telemetryVbus" class="text-xl font-bold font-mono-data text-cyan-400">100.08 V</div>
+          </div>
+          <div class="p-2 bg-cyan-950/50 rounded-lg text-cyan-400 border border-cyan-800/40">
+            <i data-lucide="zap" class="w-5 h-5"></i>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-3.5 backdrop-blur flex items-center justify-between">
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wider font-medium">Excess Solar Power</div>
+            <div id="telemetryPexcess" class="text-xl font-bold font-mono-data text-amber-400">14.85 kW</div>
+          </div>
+          <div class="p-2 bg-amber-950/50 rounded-lg text-amber-400 border border-amber-800/40">
+            <i data-lucide="sun" class="w-5 h-5"></i>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-3.5 backdrop-blur flex items-center justify-between">
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wider font-medium">Max Junction Temp ($T_j$)</div>
+            <div id="telemetryTmax" class="text-xl font-bold font-mono-data text-emerald-400">62.4 °C</div>
+          </div>
+          <div class="p-2 bg-emerald-950/50 rounded-lg text-emerald-400 border border-emerald-800/40">
+            <i data-lucide="thermometer" class="w-5 h-5"></i>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-3.5 backdrop-blur flex items-center justify-between">
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wider font-medium">Observer State</div>
+            <div id="telemetryStatus" class="text-sm font-bold font-mono-data text-emerald-400 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              NOMINAL BALANCE
+            </div>
+          </div>
+          <div id="statusIconWrap" class="p-2 bg-emerald-950/50 rounded-lg text-emerald-400 border border-emerald-800/40">
+            <i data-lucide="shield-check" class="w-5 h-5"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Interactive Row: Physical Topology Canvas + Phase Space Plot -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Physical Topology & Hardware State Canvas (7 cols) -->
+        <div class="lg:col-span-7 bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex flex-col relative overflow-hidden shadow-xl">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="cpu" class="w-4 h-4 text-cyan-400"></i>
+              <h2 class="text-sm font-semibold tracking-wide text-slate-200">SSPR 8-Sector Shunt Transistor Bank ($S_1 - S_8$)</h2>
+            </div>
+            <div class="text-xs font-mono-data text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
+              Topology: Multi-Stage Resonant Sequential
+            </div>
+          </div>
+
+          <div class="relative w-full aspect-[16/9] min-h-[300px] bg-[#03050a] rounded-xl border border-slate-800/80 overflow-hidden">
+            <canvas id="hardwareCanvas" class="w-full h-full block"></canvas>
+            
+            <!-- Real-time overlays inside canvas -->
+            <div class="absolute bottom-2 left-3 flex items-center space-x-4 text-[11px] font-mono-data text-slate-400 pointer-events-none">
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-400"></span> Active Switching ($PWM$)</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Saturated Full Shunt</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500"></span> Thermal Anomaly / Hotspot</span>
+            </div>
+            <div class="absolute top-2 right-3 text-[11px] font-mono-data text-slate-500">
+              Refresh: 25 Hz Realtime Dynamic Observer
+            </div>
+          </div>
+          
+          <div class="mt-3 grid grid-cols-4 sm:grid-cols-8 gap-2 text-center text-xs font-mono-data">
+            <div id="statLeg1" class="p-1.5 rounded bg-slate-800/40 border border-slate-700/60"><div class="text-slate-400 text-[10px]">L1</div><div class="text-cyan-400 font-bold">58°C</div></div>
+            <div id="statLeg2" class="p-1.5 rounded bg-slate-800/40 border border-slate-700/60"><div class="text-slate-400 text-[10px]">L2</div><div class="text-cyan-400 font-bold">59°C</div></div>
+            <div id="statLeg3" class="p-1.5 rounded bg-slate-800/40 border border-slate-700/60"><div class="text-slate-400 text-[10px]">L3</div><div class="text-cyan-400 font-bold">60°C</div></div>
+            <div id="statLeg4" class="p-1.5 rounded bg-slate-800/40 border border-slate-700/60"><div class="text-slate-400 text-[10px]">L4</div><div class="text-cyan-400 font-bold">61°C</div></div>
+            <div id="statLeg5" class="p-1.5 rounded bg-slate-800/40 border border-slate-700/60"><div class="text-slate-400 text-[10px]">L5</div><div class="text-cyan-400 font-bold">62°C</div></div>
+            <div id="statLeg6" class="p-1.5 rounded bg-slate-800/40 border border-slate-700/60"><div class="text-slate-400 text-[10px]">L6</div><div class="text-cyan-400 font-bold">60°C</div></div>
+            <div id="statLeg7" class="p-1.5 rounded bg-slate-800/40 border border-slate-700/60"><div class="text-slate-400 text-[10px]">L7</div><div class="text-cyan-400 font-bold">58°C</div></div>
+            <div id="statLeg8" class="p-1.5 rounded bg-slate-800/40 border border-slate-700/60"><div class="text-slate-400 text-[10px]">L8</div><div class="text-cyan-400 font-bold">57°C</div></div>
+          </div>
+        </div>
+
+        <!-- Primary Diagnostic Phase Space Chart: Duty Cycle (D) vs Temperature (T) (5 cols) -->
+        <div class="lg:col-span-5 bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="crosshair" class="w-4 h-4 text-amber-400"></i>
+              <h2 class="text-sm font-semibold tracking-wide text-slate-200">Phase-Space Diagnostic: $(D, T)$</h2>
+            </div>
+            <span class="text-[11px] font-mono-data text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800">
+              Threshold: $T > 1.25 \cdot T_{\text{pred}}(D)$
+            </span>
+          </div>
+          
+          <p class="text-xs text-slate-400 mb-2 leading-relaxed">
+            Correlates duty cycle ($D$) with shunt junction temperature ($T$). Outliers penetrating the red hazard boundary indicate non-uniform current crowding or pre-breakdown collector-emitter conduction.
+          </p>
+
+          <div class="relative w-full h-[280px]">
+            <canvas id="phaseSpaceChart"></canvas>
+          </div>
+
+          <div class="mt-3 p-2.5 rounded-lg bg-slate-950/70 border border-slate-800 flex items-center justify-between text-xs font-mono-data">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+              <span class="text-slate-300">Target Leg Operating Point</span>
+            </div>
+            <span id="targetLegCoordinates" class="text-cyan-300 font-bold">D: 0.64 | T: 62.4 °C</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Closed-Loop Control & Secondary Telemetry Row -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Controls Panel (5 cols) -->
+        <div class="lg:col-span-5 bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="sliders" class="w-4 h-4 text-cyan-400"></i>
+              <h3 class="text-sm font-semibold text-slate-200">Orbital Thermal & Load Injection Controls</h3>
+            </div>
+            <button onclick="resetSimulation()" class="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset
+            </button>
+          </div>
+
+          <!-- Slider 1: Solar Insolation -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs">
+              <span class="text-slate-300 font-medium">Solar Array Generation ($P_{\text{gen}}$)</span>
+              <span id="valSolarGen" class="font-mono-data text-cyan-400">24.0 kW (100% AM0)</span>
+            </div>
+            <input type="range" id="sliderSolarGen" min="5" max="30" step="0.5" value="24" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+            <div class="flex justify-between text-[10px] text-slate-500 font-mono-data">
+              <span>Umbra / Eclipse (5 kW)</span>
+              <span>Full Sun Equinox (30 kW)</span>
+            </div>
+          </div>
+
+          <!-- Slider 2: Spacecraft Bus Payload Load -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs">
+              <span class="text-slate-300 font-medium">Spacecraft Bus Load Demand ($P_{\text{load}}$)</span>
+              <span id="valBusLoad" class="font-mono-data text-cyan-400">9.0 kW (Low-Load Phase)</span>
+            </div>
+            <input type="range" id="sliderBusLoad" min="2" max="25" step="0.5" value="9" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+            <div class="flex justify-between text-[10px] text-slate-500 font-mono-data">
+              <span>Idle Instruments (2 kW)</span>
+              <span>High Burst Radar (25 kW)</span>
+            </div>
+          </div>
+
+          <!-- Fault Injection & Auto-Resequence Toggles -->
+          <div class="pt-2 border-t border-slate-800/80 space-y-3">
+            <div class="text-xs font-medium text-slate-300 flex items-center justify-between">
+              <span>Active Stress & Anomaly Injection</span>
+              <span class="text-[10px] text-amber-400 font-mono-data">Channel 4 Target</span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btnInjectFault" onclick="toggleFaultInjection()" class="py-2.5 px-3 rounded-lg text-xs font-semibold bg-rose-950/40 text-rose-300 border border-rose-800 hover:bg-rose-900/60 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-rose-950/20">
+                <i data-lucide="flame" class="w-3.5 h-3.5 text-rose-400"></i>
+                <span id="btnFaultText">Inject Leg 4 Hotspot</span>
+              </button>
+
+              <button id="btnAutonomous" onclick="toggleAutonomousMitigation()" class="py-2.5 px-3 rounded-lg text-xs font-semibold bg-emerald-950/40 text-emerald-300 border border-emerald-700/60 hover:bg-emerald-900/60 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-950/20">
+                <i data-lucide="shield" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span id="btnAutoText">Auto-Resequencing: ON</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="p-3 bg-slate-950/80 border border-slate-800 rounded-xl text-xs space-y-1">
+            <div class="text-slate-400 font-medium flex items-center gap-1">
+              <i data-lucide="info" class="w-3.5 h-3.5 text-cyan-400"></i>
+              <span>Active Dispatch Algorithm</span>
+            </div>
+            <p id="observerDiagnosticLog" class="text-slate-300 font-mono-data text-[11px] leading-relaxed">
+              [NOMINAL] Sector sequential rotation active. Thermal gradients across all legs &lt; 4.8°C.
+            </p>
+          </div>
+        </div>
+
+        <!-- Secondary Telemetry Plots (7 cols) -->
+        <div class="lg:col-span-7 grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          <!-- Sub-Chart 1: Shunt Temperatures over Time -->
+          <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center space-x-1.5">
+                <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
+                <span class="text-xs font-semibold text-slate-200">Sector Junction Temp ($T_j$)</span>
+              </div>
+              <span class="text-[10px] font-mono-data text-slate-400">Window: 40s</span>
+            </div>
+            <div class="relative w-full h-[180px]">
+              <canvas id="tempTimeSeriesChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Sub-Chart 2: Current Sharing Allocation -->
+          <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center space-x-1.5">
+                <i data-lucide="git-commit" class="w-4 h-4 text-amber-400"></i>
+                <span class="text-xs font-semibold text-slate-200">Shunt Current Dispatch ($I_{\text{sh}}$)</span>
+              </div>
+              <span class="text-[10px] font-mono-data text-slate-400">8 Channels</span>
+            </div>
+            <div class="relative w-full h-[180px]">
+              <canvas id="currentBarChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Bottom Summary Bar -->
+          <div class="md:col-span-2 bg-slate-900/40 border border-slate-800/80 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center space-x-2 text-slate-400">
+              <span class="inline-block w-2 h-2 rounded-full bg-cyan-400"></span>
+              <span>Total Dissipated Shunt Power:</span>
+              <span id="telemetryPshTotal" class="font-mono-data text-cyan-300 font-bold">15.00 kW</span>
+            </div>
+            <div class="flex items-center space-x-2 text-slate-400">
+              <span>Array Efficiency Factor:</span>
+              <span class="font-mono-data text-emerald-400 font-bold">99.1% (Loss Minimization)</span>
+            </div>
+            <div class="flex items-center space-x-2 text-slate-400">
+              <span>Switching Frequency:</span>
+              <span class="font-mono-data text-slate-200 font-bold">50.0 kHz</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: CORE PHYSICS & MATHEMATICAL MODEL   -->
+    <!-- ========================================== -->
+    <div id="viewPhysics" class="hidden space-y-6">
+      <div class="border-b border-slate-800 pb-4">
+        <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+          <i data-lucide="atom" class="w-6 h-6 text-cyan-400"></i>
+          Electrochemical, Solid-State & Thermal Breakdown Governing Equations
+        </h2>
+        <p class="text-sm text-slate-400 mt-1">
+          Complete mathematical formulation of Sequential Shunt Power Regulation (SSPR), thermal resistance matrices, and real-time state observer inversion for localized hotspot detection.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Physics Card 1 -->
+        <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-cyan-400 font-semibold text-sm mb-2">
+              <i data-lucide="zap" class="w-4 h-4"></i>
+              <span>1. SSPR Dynamic Shunt Dissipation & Duty Cycle Governing Law</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed mb-3">
+              In a Sequential Shunt Regulator managing $N$ solar array sections, the active bus voltage $V_{\text{bus}}$ is stabilized by keeping $k-1$ segments fully shorted (saturated $ON$), $N-k$ segments completely open ($OFF$), and exactly one segment modulated via Pulse-Width Modulation ($PWM$) at instantaneous duty ratio $D \in [0, 1]$.
+            </p>
+            <div class="formula-box">
+              $$P_{\text{diss}, i} = D_i \cdot I_{\text{sc}, i} \cdot V_{\text{sat}} + f_{\text{sw}} \cdot E_{\text{sw}}(V_{\text{bus}}, I_{\text{sc}, i}) + I_{\text{leak}} \cdot V_{\text{bus}}$$
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Where $I_{\text{sc}, i}$ is the short-circuit current of array segment $i$, $V_{\text{sat}}$ is the forward collector-emitter / drain-source conduction drop, $f_{\text{sw}}$ is switching frequency (50 kHz), and $E_{\text{sw}}$ denotes the turn-on/turn-off transitional energy integral:
+            </p>
+            <div class="formula-box">
+              $$E_{\text{sw}} = \int_{0}^{t_{\text{rise}}} v_{ce}(t) i_c(t) dt + \int_{0}^{t_{\text{fall}}} v_{ce}(t) i_c(t) dt \approx \frac{1}{2} V_{\text{bus}} I_{\text{sc}} (t_r + t_f)$$
+            </div>
+          </div>
+          <div class="text-[11px] font-mono-data text-slate-500 border-t border-slate-800/80 pt-2 mt-2">
+            Parameter Limits: $V_{\text{bus}} = 100\,\text{V} \pm 1\%$, $I_{\text{sc}} = 20\,\text{A/channel}$, $t_r+t_f \le 38\,\text{ns}$.
+          </div>
+        </div>
+
+        <!-- Physics Card 2 -->
+        <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-amber-400 font-semibold text-sm mb-2">
+              <i data-lucide="flame" class="w-4 h-4"></i>
+              <span>2. Coupled Thermal Resistance Network & Junction Evolution</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed mb-3">
+              Heat transport from the semiconductor die through the beryllium oxide ($\text{BeO}$) substrate, copper heat spreader, and spacecraft radiator panel is governed by the multi-node thermal mass differential network:
+            </p>
+            <div class="formula-box">
+              $$C_{j} \frac{d T_{j, i}}{dt} = P_{\text{diss}, i} - \frac{T_{j, i} - T_{\text{case}, i}}{R_{\theta, jc}} - \sum_{m \ne i} \frac{T_{j, i} - T_{j, m}}{R_{\theta, im}}$$
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Radiative heat rejection from the radiator skin ($A_{\text{rad}}$) into deep space background vacuum at $T_{\text{space}} = 3\,\text{K}$ enforces the nonlinear Stefan-Boltzmann boundary condition:
+            </p>
+            <div class="formula-box">
+              $$Q_{\text{rad}} = \epsilon \sigma A_{\text{rad}} \left( T_{\text{plate}}^4 - T_{\text{space}}^4 \right)$$
+            </div>
+          </div>
+          <div class="text-[11px] font-mono-data text-slate-500 border-t border-slate-800/80 pt-2 mt-2">
+            Coupling: $\epsilon = 0.88$ (silverized teflon tape), $R_{\theta, jc} = 0.42\,\text{K/W}$, $C_j = 0.85\,\text{J/K}$.
+          </div>
+        </div>
+
+        <!-- Physics Card 3 -->
+        <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-rose-400 font-semibold text-sm mb-2">
+              <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+              <span>3. Collector-Emitter Pre-Breakdown Microscopic Physics</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed mb-3">
+              Thermal runaway initiates via positive feedback in minority carrier generation. As localized lattice temperature rises due to solder voiding or gate oxide micro-fractures, reverse leakage current $I_{\text{leak}}$ escalates exponentially according to Arrhenius activation:
+            </p>
+            <div class="formula-box">
+              $$I_{\text{leak}}(T) = I_0 \cdot \exp\left( -\frac{E_g - \Delta E_t}{k_B T} \right) \left[ 1 + \left(\frac{V_{\text{ce}}}{V_{\text{br}}}\right)^n \right]$$
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              When current crowding constricts the conductive channel cross section $A_{\text{eff}}$, current density $J = I/A_{\text{eff}}$ triggers localized impact ionization ($M \to \infty$), causing destructive thermal filamentation if the sector remains modulated in the PWM state.
+            </p>
+            <div class="formula-box">
+              $$\frac{\partial P_{\text{diss}}}{\partial T} > \frac{1}{R_{\theta, \text{total}}} \implies \text{Thermal Runaway Boundary Condition}$$
+            </div>
+          </div>
+          <div class="text-[11px] font-mono-data text-slate-500 border-t border-slate-800/80 pt-2 mt-2">
+            Instability Criterion: If $\partial P/\partial T > 1/R_{\theta}$, transistor junction destroys itself in $< 180\,\text{ms}$.
+          </div>
+        </div>
+
+        <!-- Physics Card 4 -->
+        <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-emerald-400 font-semibold text-sm mb-2">
+              <i data-lucide="cpu" class="w-4 h-4"></i>
+              <span>4. Diagnostic Inversion Observer & Resequencing Matrix</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed mb-3">
+              The SolarShunt real-time observer evaluates the error residual vector $\mathbf{r}(t)$ between measured thermistor temperatures $\mathbf{T}_{\text{meas}}$ and the model-predicted state vector $\mathbf{T}_{\text{pred}}(\mathbf{D}, P_{\text{excess}})$:
+            </p>
+            <div class="formula-box">
+              $$\mathbf{r}(t) = \mathbf{T}_{\text{meas}}(t) - \left[ \mathbf{\Phi} \mathbf{T}(t-1) + \mathbf{\Gamma} \mathbf{P}_{\text{diss}}(\mathbf{D}) \right]$$
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Upon detection of residual anomaly $r_k > \theta_{\text{crit}}$, an affine permutation operator $\mathbf{\Pi}_{\text{reseq}}$ shifts the active PWM modulation role from sector $k$ to the coolest adjacent sector $j = \arg\min_m(T_{j, m})$, immediately placing degraded leg $k$ into purely open or quiescent state:
+            </p>
+            <div class="formula-box">
+              $$\mathbf{D}_{\text{new}} = \mathbf{\Pi}_{\text{reseq}} \cdot \mathbf{D}_{\text{old}}, \quad \text{where } \mathbf{\Pi}_{k, k} = 0, \;\; \mathbf{\Pi}_{j, k} = 1$$
+            </div>
+          </div>
+          <div class="text-[11px] font-mono-data text-slate-500 border-t border-slate-800/80 pt-2 mt-2">
+            Observer Latency: $\tau_{\text{det}} = 12\,\text{ms}$, Switching Command Handshake: $< 40\,\mu\text{s}$.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: NASA SBIR/STTR PROPOSAL & TRANSITION-->
+    <!-- ========================================== -->
+    <div id="viewProposal" class="hidden space-y-6">
+      
+      <!-- Top Banner Proposal Stats -->
+      <div class="bg-gradient-to-r from-slate-900 via-cyan-950/40 to-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="px-2.5 py-0.5 rounded text-xs font-mono-data bg-cyan-900/60 text-cyan-300 border border-cyan-700">NASA SBIR/STTR Solicitations</span>
+              <span class="text-xs font-mono-data text-slate-400">Topic: S4.04-3312</span>
+            </div>
+            <h2 class="text-xl font-bold text-white mt-1">High-Power Solar Array Regulation, Thermal Hotspot Mitigation & Autonomous Switching</h2>
+            <p class="text-xs text-slate-300 mt-1 max-w-3xl leading-relaxed">
+              Phase I Proposal: $225,000 Firm-Fixed Price over 6 Months. Transitioning spaceflight-grade GaN/SiC sequential shunt regulation firmware to prevent mission-fatal array shorting on Lunar Gateway, Artemis Power Elements, and deep-space science orbiters.
+            </p>
+          </div>
+          <div class="flex flex-col items-start md:items-end font-mono-data">
+            <span class="text-2xl font-bold text-cyan-400">$225,000</span>
+            <span class="text-xs text-slate-400">Total Phase I Budget (6 Mos)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Research Partner & Allocation Callout -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl md:col-span-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-amber-400 font-semibold text-sm mb-2">
+              <i data-lucide="building-2" class="w-4 h-4"></i>
+              <span>STTR Research Partner (30.0%)</span>
+            </div>
+            <div class="text-lg font-bold text-white">University of Central Florida</div>
+            <div class="text-xs text-amber-300/80 font-mono-data mt-0.5">Center for Advanced Turbomachinery & Energy Research (CATER)</div>
+            
+            <p class="text-xs text-slate-300 mt-3 leading-relaxed">
+              UCF provides specialized high-vacuum thermal chambers ($10^{-7}\,\text{Torr}$), radiant solar simulator banks (up to 2.2 Suns AM0), and in-situ high-speed infrared thermography ($>1\,\text{kHz}$ frame rate) for silicon and gallium nitride shunt dies.
+            </p>
+          </div>
+          
+          <div class="mt-4 pt-3 border-t border-slate-800">
+            <div class="flex justify-between items-center text-xs font-mono-data">
+              <span class="text-slate-400">Subcontract Allocation:</span>
+              <span class="text-cyan-400 font-bold">$67,500 (30.0%)</span>
+            </div>
+            <div class="flex justify-between items-center text-xs font-mono-data mt-1">
+              <span class="text-slate-400">Principal Investigator:</span>
+              <span class="text-slate-200">Prof. Thermal Physics, UCF</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl md:col-span-2 space-y-4">
+          <div class="flex items-center space-x-2 text-cyan-400 font-semibold text-sm">
+            <i data-lucide="check-circle" class="w-4 h-4"></i>
+            <span>Technical Superiority Over Legacy Architectures</span>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
+              <span class="text-rose-400 font-semibold">Legacy Sequential Shunting</span>
+              <p class="text-slate-400 leading-relaxed">
+                Uses fixed ladder sequencing (Leg 1 always switches first). Suffers from severe cumulative thermal degradation, 3x faster gate dielectric breakdown, and single-point open/short array fires.
+              </p>
+            </div>
+            <div class="p-3 rounded-xl bg-cyan-950/30 border border-cyan-800/60 space-y-1">
+              <span class="text-cyan-300 font-semibold">SolarShunt Dynamic Balancing</span>
+              <p class="text-slate-300 leading-relaxed">
+                Autonomous $(D, T)$ phase-space observer balances thermal flux across all 8 legs, extends array life from 7 to 18 years, and reroutes around degraded transistors in &lt; 15 ms.
+              </p>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+            <div class="text-xs font-semibold text-slate-200 mb-1">NASA Mission Insertion Targets</div>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Artemis Power and Propulsion Element (PPE - 60 kW Max Shunt Power), Commercial Lunar Payload Services (CLPS landers), Mars Sample Return Solar Array Drive assemblies, and Low Earth Orbit (LEO) smallsat constellations operating in extreme thermal eclipse cycling.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6-Month Phase I Milestone Breakdown -->
+      <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+        <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+          <i data-lucide="calendar" class="w-4 h-4 text-cyan-400"></i>
+          Phase I 6-Month Work Breakdown Schedule ($225,000)
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <!-- Month 1-2 -->
+          <div class="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-center text-xs font-mono-data mb-1">
+                <span class="text-cyan-400 font-bold">M1 - M2</span>
+                <span class="text-slate-500">$55,000</span>
+              </div>
+              <div class="text-xs font-semibold text-slate-200">High-Fidelity Electrothermal Modeling</div>
+              <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                Formulate multi-node SPICE-thermal co-simulation models of 100V / 20A SiC MOSFET and GaN HEMT shunt stages under AM0 orbit insolation profiles.
+              </p>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-800 text-[10px] font-mono-data text-emerald-400 flex items-center gap-1">
+              <i data-lucide="check" class="w-3 h-3"></i> Mil 1: Calibrated Model
+            </div>
+          </div>
+
+          <!-- Month 3 -->
+          <div class="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-center text-xs font-mono-data mb-1">
+                <span class="text-cyan-400 font-bold">M3</span>
+                <span class="text-slate-500">$50,000</span>
+              </div>
+              <div class="text-xs font-semibold text-slate-200">State Observer Inversion Algorithm</div>
+              <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                Implement $(D, T)$ phase-space observer code on radiation-tolerant ARM Cortex-M7 / RTG4 FPGA embedded cores; benchmark detection latency under 15 ms.
+              </p>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-800 text-[10px] font-mono-data text-emerald-400 flex items-center gap-1">
+              <i data-lucide="check" class="w-3 h-3"></i> Mil 2: Firmware Pipeline
+            </div>
+          </div>
+
+          <!-- Month 4-5 -->
+          <div class="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-center text-xs font-mono-data mb-1">
+                <span class="text-amber-400 font-bold">M4 - M5</span>
+                <span class="text-amber-300">$70,000 (UCF)</span>
+              </div>
+              <div class="text-xs font-semibold text-slate-200">UCF Thermal-Vacuum Chamber Testing</div>
+              <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                Fabricate 8-stage 20 kW SSPR prototype test bench at UCF CATER facility. Validate automated hotspot resequencing under simulated single-leg thermal runaway.
+              </p>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-800 text-[10px] font-mono-data text-amber-400 flex items-center gap-1">
+              <i data-lucide="clock" class="w-3 h-3"></i> Mil 3: TVAC Chamber Data
+            </div>
+          </div>
+
+          <!-- Month 6 -->
+          <div class="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-center text-xs font-mono-data mb-1">
+                <span class="text-cyan-400 font-bold">M6</span>
+                <span class="text-slate-500">$50,000</span>
+              </div>
+              <div class="text-xs font-semibold text-slate-200">Phase II Transition Architecture</div>
+              <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                Deliver flight qualification specification, radiation hardening analysis, and TRL 6 path toward $850k–$1.2M Phase II hardware engineering qualification unit.
+              </p>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-800 text-[10px] font-mono-data text-slate-400 flex items-center gap-1">
+              <i data-lucide="arrow-right" class="w-3 h-3"></i> Mil 4: Phase II Flight Spec
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: COMMERCIAL & NATIONWIDE ARR         -->
+    <!-- ========================================== -->
+    <div id="viewARR" class="hidden space-y-6">
+      
+      <!-- Executive Summary Top Box -->
+      <div class="bg-gradient-to-r from-slate-900 via-sky-950/40 to-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div class="text-xs font-mono-data text-cyan-400 uppercase tracking-wider font-semibold">Civilian & Commercial Total Addressable Market</div>
+            <h2 class="text-2xl font-bold text-white mt-1">$218.4M Mature Annual Recurring Revenue (ARR)</h2>
+            <p class="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+              Executive Proposition: SolarShunt replaces dumb hardware overdesign with dynamic phase-space thermal firmware—preventing billion-dollar array fires and doubling the usable lifespan of critical energy infrastructure.
+            </p>
+          </div>
+          <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 text-right font-mono-data">
+            <div class="text-xs text-slate-400">Enterprise Valuation (10x SaaS Multiple)</div>
+            <div class="text-2xl font-bold text-emerald-400">$2.18 Billion</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Commercial Market Table -->
+      <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl overflow-x-auto">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="bar-chart-3" class="w-4 h-4 text-cyan-400"></i>
+            <h3 class="text-sm font-semibold text-slate-200">Nationwide Civil Market Sector Distribution</h3>
+          </div>
+          <span class="text-xs font-mono-data text-slate-400">Pricing Model: Per-Regulator Node SaaS / Edge License</span>
+        </div>
+
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="border-b border-slate-800 text-slate-400 font-mono-data">
+              <th class="pb-2.5">Target Commercial Sector</th>
+              <th class="pb-2.5">Specific Industrial Application</th>
+              <th class="pb-2.5">Software Runtime Metric</th>
+              <th class="pb-2.5">Addressable Asset Base</th>
+              <th class="pb-2.5 text-right">Mature Annual ARR</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-800/60 font-mono-data text-slate-300">
+            <tr class="hover:bg-slate-800/30">
+              <td class="py-3 font-semibold text-white">Commercial LEO Satellites</td>
+              <td class="text-slate-400">Broadband Constellation Array Regulation</td>
+              <td>$12,500 / satellite / year</td>
+              <td>4,200 commercial satellites</td>
+              <td class="text-right text-cyan-400 font-bold">$52.5M</td>
+            </tr>
+            <tr class="hover:bg-slate-800/30">
+              <td class="py-3 font-semibold text-white">Utility-Scale Solar + Storage</td>
+              <td class="text-slate-400">Central Inverter DC-DC Clipping Regulation</td>
+              <td>$4,800 / 100MW substation / yr</td>
+              <td>12,500 grid solar blocks</td>
+              <td class="text-right text-cyan-400 font-bold">$60.0M</td>
+            </tr>
+            <tr class="hover:bg-slate-800/30">
+              <td class="py-3 font-semibold text-white">Commercial High-Power EV Hubs</td>
+              <td class="text-slate-400">350kW DC Fast-Charger Shared Bus Thermal Balancer</td>
+              <td>$750 / dispenser / year</td>
+              <td>64,000 fast-charge dispensers</td>
+              <td class="text-right text-cyan-400 font-bold">$48.0M</td>
+            </tr>
+            <tr class="hover:bg-slate-800/30">
+              <td class="py-3 font-semibold text-white">Civil Electric Aviation</td>
+              <td class="text-slate-400">eVTOL High-Voltage Bus Dump Shunt Regulators</td>
+              <td>$6,200 / airframe / year</td>
+              <td>4,500 certified airframes</td>
+              <td class="text-right text-cyan-400 font-bold">$27.9M</td>
+            </tr>
+            <tr class="hover:bg-slate-800/30">
+              <td class="py-3 font-semibold text-white">Hyperscale Datacenter Microgrids</td>
+              <td class="text-slate-400">On-Site Islanded Solar Generation Balancer</td>
+              <td>$15,000 / campus / year</td>
+              <td>2,000 hyperscale facilities</td>
+              <td class="text-right text-cyan-400 font-bold">$30.0M</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr class="border-t-2 border-slate-700 text-xs font-mono-data font-bold text-white">
+              <td colspan="4" class="py-3">Cumulative Annual Recurring Revenue (ARR):</td>
+              <td class="py-3 text-right text-emerald-400 text-sm">$218.4M</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- Deep-Dive Vertical Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Deep Dive 1 -->
+        <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2">
+          <div class="flex items-center space-x-2 text-cyan-400 font-semibold text-sm">
+            <i data-lucide="satellite" class="w-4 h-4"></i>
+            <span>Commercial LEO Telecom Constellations</span>
+          </div>
+          <div class="text-xs text-slate-300">
+            <span class="text-cyan-300 font-mono-data font-semibold">Physics in 1 Sentence:</span>
+            When internet traffic drops during night-side Earth flyovers under full sun exposure, sequential shunts must dissipate up to 85% of total array capacity without exceeding silicon glass transition temperatures.
+          </div>
+          <div class="text-xs text-slate-400">
+            <span class="text-amber-400 font-mono-data font-semibold">Why Others Missed This:</span>
+            Incumbents rely on passive radiator over-sizing (adding hundreds of pounds of parasitic mass) or rigid round-robin rotations that blind themselves when one transistor develops gate leakage.
+          </div>
+        </div>
+
+        <!-- Deep Dive 2 -->
+        <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2">
+          <div class="flex items-center space-x-2 text-amber-400 font-semibold text-sm">
+            <i data-lucide="sun" class="w-4 h-4"></i>
+            <span>Utility Solar Central Inverters</span>
+          </div>
+          <div class="text-xs text-slate-300">
+            <span class="text-cyan-300 font-mono-data font-semibold">Physics in 1 Sentence:</span>
+            During noon peak generation when transmission interconnects curtail grid injection, solid-state DC clipping stages experience extreme localized thermal gradients across paralleled IGBT strings.
+          </div>
+          <div class="text-xs text-slate-400">
+            <span class="text-amber-400 font-mono-data font-semibold">Why Others Missed This:</span>
+            Grid operators accept catastrophic inverter thermal trips and annual component fires as unavoidable weather hazards, rather than observing and re-indexing $(D, T)$ phase-space shifts before ignition.
+          </div>
+        </div>
+
+        <!-- Deep Dive 3 -->
+        <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2">
+          <div class="flex items-center space-x-2 text-emerald-400 font-semibold text-sm">
+            <i data-lucide="zap" class="w-4 h-4"></i>
+            <span>Megawatt EV Fast-Charging Hubs</span>
+          </div>
+          <div class="text-xs text-slate-300">
+            <span class="text-cyan-300 font-mono-data font-semibold">Physics in 1 Sentence:</span>
+            Dynamic vehicle disconnects cause sudden load dumps ($1000\,\text{V}$ bus transient spikes) that require high-speed sequential dump resistor shunting to prevent battery storage over-voltage.
+          </div>
+          <div class="text-xs text-slate-400">
+            <span class="text-amber-400 font-mono-data font-semibold">Why Others Missed This:</span>
+            Manufacturers install costly electromechanical contactors that degrade after 10,000 cycles instead of solid-state active thermal-balanced semiconductor regulation.
+          </div>
+        </div>
+
+        <!-- Deep Dive 4 -->
+        <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2">
+          <div class="flex items-center space-x-2 text-rose-400 font-semibold text-sm">
+            <i data-lucide="plane" class="w-4 h-4"></i>
+            <span>Civil Electric Air Mobility (eVTOL)</span>
+          </div>
+          <div class="text-xs text-slate-300">
+            <span class="text-cyan-300 font-mono-data font-semibold">Physics in 1 Sentence:</span>
+            Emergency rotor deceleration forces regeneration energy back onto the 800V DC aircraft backbone, requiring fail-safe sequential dissipation without exceeding FAA composite wing thermal caps.
+          </div>
+          <div class="text-xs text-slate-400">
+            <span class="text-amber-400 font-mono-data font-semibold">Why Others Missed This:</span>
+            Aviation engineers use heavy sacrificial brake resistors that lack sector-level state estimation and cannot detect impending thermal breakdown during hover aborts.
+          </div>
+        </div>
+      </div>
+
+      <!-- Contact & Partnership Call to Action -->
+      <div class="p-5 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <div class="text-sm font-semibold text-white">Commercial Licensing & Dual-Use SBIR Contracting</div>
+          <div class="text-xs text-slate-400">Inquire for software evaluation kits, flight firmware binaries, or STTR Phase II transition consortiums.</div>
+        </div>
+        <a href="mailto:support@rfwavecode.com" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 text-white font-medium text-xs hover:from-cyan-500 hover:to-sky-500 transition-all flex items-center space-x-2 shadow-lg shadow-cyan-950/40">
+          <i data-lucide="mail" class="w-4 h-4"></i>
+          <span>Contact: support@rfwavecode.com</span>
+        </a>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Global Footer -->
+  <footer class="border-t border-slate-800/80 bg-[#080c14] py-4 text-center text-xs text-slate-500 font-mono-data">
+    SolarShunt SSPR Diagnostic Observer &bull; NASA SBIR/STTR Solicitations S4.04-3312 &bull; Dual-Use Aerospace Firmware
+  </footer>
+
+  <!-- ======================================================== -->
+  <!-- JAVASCRIPT: Simulation Engine, Chart.js & State Manager  -->
+  <!-- ======================================================== -->
+  <script>
+    // --- 1. Global State Variables ---
+    const NUM_LEGS = 8;
+    let solarGenerationKW = 24.0;
+    let busLoadKW = 9.0;
+    let faultInjected = false;
+    let faultLegIndex = 3; // Leg 4 (0-indexed)
+    let autoResequence = true;
+    let activePwmLeg = 3;  // Current switching channel
+    
+    // Leg status arrays
+    let legTemps = [58, 59, 60, 61, 62, 60, 58, 57];
+    let legDuties = [0, 0, 0, 0, 0, 0, 0, 0];
+    let legCurrents = [0, 0, 0, 0, 0, 0, 0, 0];
+    let legHealth = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]; // 1.0=nominal, 0.2=degraded
+
+    // Charts
+    let phaseSpaceChart = null;
+    let tempTimeSeriesChart = null;
+    let currentBarChart = null;
+
+    // Time-series history buffers (40 points)
+    const MAX_HISTORY = 40;
+    let historyLabels = [];
+    let historyLeg4Temp = [];
+    let historyLegAvgTemp = [];
+    let tickCount = 0;
+
+    // --- 2. Tab Navigation System (Bulletproof Mapping) ---
+    const tabMapping = {
+      'sim': { viewId: 'viewSim', btnId: 'tabBtnSim' },
+      'physics': { viewId: 'viewPhysics', btnId: 'tabBtnPhysics' },
+      'proposal': { viewId: 'viewProposal', btnId: 'tabBtnProposal' },
+      'arr': { viewId: 'viewARR', btnId: 'tabBtnARR' }
+    };
+
+    function switchTab(targetKey) {
+      Object.keys(tabMapping).forEach(key => {
+        const item = tabMapping[key];
+        const viewEl = document.getElementById(item.viewId);
+        const btnEl = document.getElementById(item.btnId);
+
+        if (key === targetKey) {
+          viewEl.classList.remove('hidden');
+          btnEl.className = "px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center space-x-1.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/30";
+        } else {
+          viewEl.classList.add('hidden');
+          btnEl.className = "px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center space-x-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60";
+        }
+      });
+
+      // Typeset formulas when switching tabs
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise().catch(err => console.debug(err));
+      }
+
+      // Re-trigger canvas size if returning to simulation
+      if (targetKey === 'sim') {
+        setTimeout(() => {
+          resizeCanvas();
+        }, 30);
+      }
+    }
+
+    // --- 3. Physics Simulation Step & Logic ---
+    function updatePhysicsModel() {
+      tickCount++;
+      const pExcessKW = Math.max(0, solarGenerationKW - busLoadKW);
+      const totalCapacityKW = 24.0;
+      const legCapacityKW = totalCapacityKW / NUM_LEGS; // 3.0 kW per leg
+      
+      // Calculate how many legs must be completely shunted vs modulated
+      const rawShuntRatio = Math.min(1.0, pExcessKW / totalCapacityKW);
+      const scaledLegs = rawShuntRatio * NUM_LEGS;
+      const fullLegs = Math.floor(scaledLegs);
+      const fractionalDuty = scaledLegs - fullLegs;
+
+      // Assign duty cycles based on sequencing strategy
+      for (let i = 0; i < NUM_LEGS; i++) {
+        legDuties[i] = 0;
+      }
+
+      // Check if fault injection is active
+      if (faultInjected) {
+        // Leg 4 undergoes collector-emitter current leakage / hotspot breakdown
+        legHealth[faultLegIndex] = Math.max(0.15, legHealth[faultLegIndex] - 0.04);
+      } else {
+        legHealth[faultLegIndex] = Math.min(1.0, legHealth[faultLegIndex] + 0.02);
+      }
+
+      // Autonomous detection & resequencing observer
+      const faultTempThreshold = 78.0; // °C
+      const isOverheated = legTemps[faultLegIndex] > faultTempThreshold || legHealth[faultLegIndex] < 0.6;
+      
+      let dispatchOrder = [0, 1, 2, 3, 4, 5, 6, 7];
+
+      if (autoResequence && isOverheated) {
+        // Shift Leg 4 to the very back of the line (open circuit recovery)
+        dispatchOrder = [0, 1, 2, 4, 5, 6, 7, 3];
+        document.getElementById('telemetryStatus').innerHTML = `
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          AUTONOMOUS MITIGATION: RESEQUENCED
+        `;
+        document.getElementById('telemetryStatus').className = "text-sm font-bold font-mono-data text-amber-400 flex items-center gap-1.5";
+        document.getElementById('statusIconWrap').className = "p-2 bg-amber-950/50 rounded-lg text-amber-400 border border-amber-800/40";
+        document.getElementById('observerDiagnosticLog').innerHTML = `
+          <span class="text-amber-400 font-bold">[TRIGGERED]</span> Anomaly detected on Leg 4 (D=${legDuties[3].toFixed(2)}, T=${legTemps[3].toFixed(1)}°C). Shunting diverted to cooler Leg 5/6.
+        `;
+      } else if (!autoResequence && isOverheated) {
+        document.getElementById('telemetryStatus').innerHTML = `
+          <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+          CRITICAL BREAKDOWN IMMINENT
+        `;
+        document.getElementById('telemetryStatus').className = "text-sm font-bold font-mono-data text-rose-500 flex items-center gap-1.5";
+        document.getElementById('statusIconWrap').className = "p-2 bg-rose-950/50 rounded-lg text-rose-500 border border-rose-800/40";
+        document.getElementById('observerDiagnosticLog').innerHTML = `
+          <span class="text-rose-400 font-bold">[CRITICAL]</span> Leg 4 junction temperature entering thermal runaway! Auto-resequencing is DISABLED.
+        `;
+      } else {
+        document.getElementById('telemetryStatus').innerHTML = `
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          NOMINAL BALANCE
+        `;
+        document.getElementById('telemetryStatus').className = "text-sm font-bold font-mono-data text-emerald-400 flex items-center gap-1.5";
+        document.getElementById('statusIconWrap').className = "p-2 bg-emerald-950/50 rounded-lg text-emerald-400 border border-emerald-800/40";
+        document.getElementById('observerDiagnosticLog').innerHTML = `
+          [NOMINAL] SSPR sequential rotation active. Phase-space correlation residual $\\Delta &lt; 0.05$. Thermal gradient &lt; 4.8°C.
+        `;
+      }
+
+      // Distribute duties to ordered legs
+      for (let k = 0; k < fullLegs && k < NUM_LEGS; k++) {
+        legDuties[dispatchOrder[k]] = 1.0;
+      }
+      if (fullLegs < NUM_LEGS) {
+        activePwmLeg = dispatchOrder[fullLegs];
+        legDuties[activePwmLeg] = fractionalDuty;
+      }
+
+      // Update thermal dynamics (Coupled Thermal RC Differential Step)
+      for (let i = 0; i < NUM_LEGS; i++) {
+        const d = legDuties[i];
+        const nominalDissipatedW = (d * 1800) + (d > 0.05 && d < 0.95 ? 420 : 60); // switching loss when in PWM
+        let extraFaultLossW = 0;
+        
+        if (i === faultLegIndex && faultInjected) {
+          // Collector-emitter leakage escalation
+          extraFaultLossW = (1.0 - legHealth[i]) * 2800;
+        }
+
+        const targetTemp = 48.0 + (nominalDissipatedW + extraFaultLossW) / 38.0;
+        // Thermal inertia exponential relaxation
+        legTemps[i] += (targetTemp - legTemps[i]) * 0.08;
+        
+        // Current per leg
+        legCurrents[i] = d * 20.0 * (i === faultLegIndex && faultInjected ? 1.4 : 1.0);
+      }
+
+      // Update HUD telemetry numbers
+      const vBus = 100.0 + (Math.sin(tickCount * 0.1) * 0.08);
+      document.getElementById('telemetryVbus').innerText = `${vBus.toFixed(2)} V`;
+      document.getElementById('telemetryPexcess').innerText = `${pExcessKW.toFixed(2)} kW`;
+      const maxT = Math.max(...legTemps);
+      const elTmax = document.getElementById('telemetryTmax');
+      elTmax.innerText = `${maxT.toFixed(1)} °C`;
+      if (maxT > 85) elTmax.className = "text-xl font-bold font-mono-data text-rose-500";
+      else if (maxT > 72) elTmax.className = "text-xl font-bold font-mono-data text-amber-400";
+      else elTmax.className = "text-xl font-bold font-mono-data text-emerald-400";
+
+      document.getElementById('telemetryPshTotal').innerText = `${pExcessKW.toFixed(2)} kW`;
+      document.getElementById('targetLegCoordinates').innerText = `D: ${legDuties[faultLegIndex].toFixed(2)} | T: ${legTemps[faultLegIndex].toFixed(1)} °C`;
+
+      // Update leg table badges below canvas
+      for (let i = 0; i < NUM_LEGS; i++) {
+        const badge = document.getElementById(`statLeg${i+1}`);
+        if (badge) {
+          const t = legTemps[i];
+          const colorClass = t > 80 ? 'text-rose-400' : (t > 68 ? 'text-amber-400' : 'text-cyan-400');
+          badge.innerHTML = `<div class="text-slate-400 text-[10px]">L${i+1}</div><div class="${colorClass} font-bold">${t.toFixed(0)}°C</div>`;
+        }
+      }
+
+      // Buffer history for time series
+      if (tickCount % 2 === 0) {
+        historyLabels.push(`${(tickCount * 0.1).toFixed(0)}s`);
+        historyLeg4Temp.push(legTemps[3]);
+        const avg = legTemps.reduce((a, b) => a + b, 0) / NUM_LEGS;
+        historyLegAvgTemp.push(avg);
+
+        if (historyLabels.length > MAX_HISTORY) {
+          historyLabels.shift();
+          historyLeg4Temp.shift();
+          historyLegAvgTemp.shift();
+        }
+      }
+    }
+
+    // --- 4. Canvas Hardware Layout Visualizer ---
+    const canvas = document.getElementById('hardwareCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const w = rect.width || 640;
+      const h = rect.height || 360;
+      canvas.width = w * window.devicePixelRatio;
+      canvas.height = h * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+
+    function drawHardwareSimulation() {
+      const w = canvas.width / window.devicePixelRatio;
+      const h = canvas.height / window.devicePixelRatio;
+      ctx.clearRect(0, 0, w, h);
+
+      // Background grid lines
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < w; x += 30) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let y = 0; y < h; y += 30) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      // Main Solar Array Bus Top Bar
+      const busY = 32;
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(40, busY - 4, w - 80, 8);
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = '#bae6fd';
+      ctx.font = '10px JetBrains Mono';
+      ctx.fillText('SOLAR ARRAY POWER BUS: +100V STABILIZED', 45, busY - 10);
+      ctx.shadowBlur = 0;
+
+      // Ground / Return Radiator Plate Bottom Bar
+      const gndY = h - 45;
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(40, gndY - 3, w - 80, 6);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('SPACE RADIATOR HEAT SPREADER / RETURN GROUND', 45, gndY + 22);
+
+      // Draw 8 Shunt Legs
+      const startX = 65;
+      const totalSpacing = w - 130;
+      const legStep = totalSpacing / (NUM_LEGS - 1);
+
+      for (let i = 0; i < NUM_LEGS; i++) {
+        const x = startX + i * legStep;
+        const d = legDuties[i];
+        const t = legTemps[i];
+        const isFaulty = (i === faultLegIndex && faultInjected);
+
+        // Vertical conductor line
+        ctx.strokeStyle = d > 0.95 ? '#f59e0b' : (d > 0.05 ? '#06b6d4' : '#1e293b');
+        ctx.lineWidth = d > 0 ? 3 : 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, busY);
+        ctx.lineTo(x, gndY);
+        ctx.stroke();
+
+        // Shunt Transistor Block Box
+        const boxH = 50;
+        const boxW = Math.min(48, legStep * 0.75);
+        const boxY = (busY + gndY) / 2 - boxH / 2;
+
+        // Color gradient based on temperature
+        const heatRatio = Math.min(1.0, Math.max(0, (t - 50) / 45));
+        let boxFill = '#0f172a';
+        let boxBorder = '#334155';
+
+        if (heatRatio > 0.6) {
+          boxFill = `rgba(239, 68, 68, ${0.3 + heatRatio * 0.5})`;
+          boxBorder = '#ef4444';
+        } else if (heatRatio > 0.25) {
+          boxFill = `rgba(245, 158, 11, ${0.2 + heatRatio * 0.4})`;
+          boxBorder = '#f59e0b';
+        } else if (d > 0.05) {
+          boxFill = 'rgba(6, 182, 212, 0.25)';
+          boxBorder = '#06b6d4';
+        }
+
+        ctx.fillStyle = boxFill;
+        ctx.strokeStyle = boxBorder;
+        ctx.lineWidth = isFaulty ? 2.5 : 1.5;
+        
+        ctx.beginPath();
+        ctx.roundRect(x - boxW / 2, boxY, boxW, boxH, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        // Transistor schematic icon inside box
+        ctx.strokeStyle = isFaulty ? '#fca5a5' : '#94a3b8';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x - 8, boxY + 15);
+        ctx.lineTo(x + 8, boxY + 15);
+        ctx.moveTo(x, boxY + 15);
+        ctx.lineTo(x, boxY + 35);
+        ctx.moveTo(x - 10, boxY + 35);
+        ctx.lineTo(x + 10, boxY + 35);
+        ctx.stroke();
+
+        // Labels
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 9px JetBrains Mono';
+        ctx.textAlign = 'center';
+        ctx.fillText(`S${i+1}`, x, boxY - 8);
+
+        // Duty & Temperature readout
+        ctx.fillStyle = t > 80 ? '#f87171' : (t > 68 ? '#fbbf24' : '#38bdf8');
+        ctx.font = '10px JetBrains Mono';
+        ctx.fillText(`${t.toFixed(0)}°C`, x, boxY + boxH + 16);
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '9px JetBrains Mono';
+        ctx.fillText(`D:${d.toFixed(2)}`, x, boxY + boxH + 28);
+
+        // Animated PWM conduction particles
+        if (d > 0.02) {
+          const flowSpeed = (tickCount * 4 + i * 15) % (gndY - busY);
+          const particleY = busY + flowSpeed;
+          ctx.beginPath();
+          ctx.arc(x, particleY, d > 0.8 ? 3.5 : 2, 0, Math.PI * 2);
+          ctx.fillStyle = isFaulty ? '#ef4444' : (d > 0.8 ? '#fbbf24' : '#38bdf8');
+          ctx.shadowColor = ctx.fillStyle;
+          ctx.shadowBlur = 6;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+
+        // Hotspot warning halo if leg is damaged
+        if (isFaulty) {
+          ctx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.arc(x, (busY + gndY)/2, boxW * 0.85, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+
+      ctx.textAlign = 'left';
+    }
+
+    // --- 5. Chart.js Setup & Multi-Plot Management ---
+    function initCharts() {
+      // 5.1 Primary Diagnostic: Phase Space (D vs T)
+      const ctxPhase = document.getElementById('phaseSpaceChart').getContext('2d');
+      
+      // Nominal baseline corridor curve: T = 50 + 20 * D
+      const baselineData = [];
+      const hazardThresholdData = [];
+      for (let d = 0; d <= 1.05; d += 0.05) {
+        baselineData.push({ x: d, y: 50.0 + 22.0 * Math.pow(d, 1.2) });
+        hazardThresholdData.push({ x: d, y: 65.0 + 20.0 * d }); // Hazard boundary line
+      }
+
+      phaseSpaceChart = new Chart(ctxPhase, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Hazard Threshold ($T_{\\text{crit}}$)',
+              data: hazardThresholdData,
+              showLine: true,
+              borderColor: '#ef4444',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              pointRadius: 0,
+              fill: {
+                target: 'end',
+                above: 'rgba(239, 68, 68, 0.08)'
+              }
+            },
+            {
+              label: 'Nominal Electro-Thermal Corridor',
+              data: baselineData,
+              showLine: true,
+              borderColor: '#06b6d4',
+              borderWidth: 2,
+              pointRadius: 0
+            },
+            {
+              label: 'Active Shunt Legs ($S_1 - S_8$)',
+              data: [
+                { x: 0, y: 58 }, { x: 0, y: 59 }, { x: 0, y: 60 },
+                { x: 0.6, y: 62 }, { x: 1, y: 64 }, { x: 1, y: 63 },
+                { x: 1, y: 61 }, { x: 1, y: 60 }
+              ],
+              backgroundColor: '#f59e0b',
+              borderColor: '#ffffff',
+              borderWidth: 1.5,
+              pointRadius: 6,
+              pointHoverRadius: 8
+            },
+            {
+              label: 'Monitored Leg 4 Hotspot Target',
+              data: [{ x: 0.6, y: 62 }],
+              backgroundColor: '#ef4444',
+              borderColor: '#ffffff',
+              borderWidth: 2,
+              pointRadius: 9
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Duty Cycle (D)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              min: 0,
+              max: 1.05,
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Temperature T (°C)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              min: 40,
+              max: 110,
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: '#cbd5e1',
+                boxWidth: 10,
+                font: { family: 'Inter', size: 10 }
+              }
+            }
+          }
+        }
+      });
+
+      // 5.2 Time Series: Junction Temperature History
+      const ctxTime = document.getElementById('tempTimeSeriesChart').getContext('2d');
+      tempTimeSeriesChart = new Chart(ctxTime, {
+        type: 'line',
+        data: {
+          labels: historyLabels,
+          datasets: [
+            {
+              label: 'Leg 4 Junction ($T_4$)',
+              data: historyLeg4Temp,
+              borderColor: '#f43f5e',
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.2
+            },
+            {
+              label: 'Bank Mean Temp ($T_{\\text{avg}}$)',
+              data: historyLegAvgTemp,
+              borderColor: '#06b6d4',
+              borderWidth: 1.5,
+              borderDash: [3, 3],
+              pointRadius: 0,
+              tension: 0.2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              display: false,
+              grid: { color: '#1e293b' }
+            },
+            y: {
+              min: 45,
+              max: 105,
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { color: '#cbd5e1', boxWidth: 10, font: { size: 9 } }
+            }
+          }
+        }
+      });
+
+      // 5.3 Bar Chart: Current Distribution
+      const ctxBar = document.getElementById('currentBarChart').getContext('2d');
+      currentBarChart = new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+          labels: ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8'],
+          datasets: [
+            {
+              label: 'Current (A)',
+              data: legCurrents,
+              backgroundColor: '#0ea5e9',
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 9 } }
+            },
+            y: {
+              min: 0,
+              max: 30,
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
+    function updateCharts() {
+      if (!phaseSpaceChart || !tempTimeSeriesChart || !currentBarChart) return;
+
+      // Update Phase Space Scatter Points
+      const points = [];
+      for (let i = 0; i < NUM_LEGS; i++) {
+        points.push({ x: legDuties[i], y: legTemps[i] });
+      }
+      phaseSpaceChart.data.datasets[2].data = points;
+      phaseSpaceChart.data.datasets[3].data = [{ x: legDuties[faultLegIndex], y: legTemps[faultLegIndex] }];
+      phaseSpaceChart.update('none');
+
+      // Update Time Series
+      tempTimeSeriesChart.data.labels = [...historyLabels];
+      tempTimeSeriesChart.data.datasets[0].data = [...historyLeg4Temp];
+      tempTimeSeriesChart.data.datasets[1].data = [...historyLegAvgTemp];
+      tempTimeSeriesChart.update('none');
+
+      // Update Bar Chart
+      currentBarChart.data.datasets[0].data = [...legCurrents];
+      // Color bar 4 red if fault injected
+      currentBarChart.data.datasets[0].backgroundColor = legCurrents.map((val, idx) => {
+        if (idx === faultLegIndex && faultInjected) return '#ef4444';
+        if (idx === activePwmLeg) return '#06b6d4';
+        if (val > 1) return '#f59e0b';
+        return '#334155';
+      });
+      currentBarChart.update('none');
+    }
+
+    // --- 6. User Interactive Event Handlers ---
+    document.getElementById('sliderSolarGen').addEventListener('input', function(e) {
+      solarGenerationKW = parseFloat(e.target.value);
+      document.getElementById('valSolarGen').innerText = `${solarGenerationKW.toFixed(1)} kW (${(solarGenerationKW/24*100).toFixed(0)}% AM0)`;
+    });
+
+    document.getElementById('sliderBusLoad').addEventListener('input', function(e) {
+      busLoadKW = parseFloat(e.target.value);
+      const label = busLoadKW < 6 ? 'Low-Load Phase' : (busLoadKW > 18 ? 'High Burst Mode' : 'Nominal Cruise');
+      document.getElementById('valBusLoad').innerText = `${busLoadKW.toFixed(1)} kW (${label})`;
+    });
+
+    function toggleFaultInjection() {
+      faultInjected = !faultInjected;
+      const btn = document.getElementById('btnInjectFault');
+      const text = document.getElementById('btnFaultText');
+      if (faultInjected) {
+        btn.className = "py-2.5 px-3 rounded-lg text-xs font-semibold bg-rose-600 text-white border border-rose-500 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-rose-600/30";
+        text.innerText = "Clear Leg 4 Fault";
+      } else {
+        btn.className = "py-2.5 px-3 rounded-lg text-xs font-semibold bg-rose-950/40 text-rose-300 border border-rose-800 hover:bg-rose-900/60 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-rose-950/20";
+        text.innerText = "Inject Leg 4 Hotspot";
+      }
+    }
+
+    function toggleAutonomousMitigation() {
+      autoResequence = !autoResequence;
+      const btn = document.getElementById('btnAutonomous');
+      const text = document.getElementById('btnAutoText');
+      if (autoResequence) {
+        btn.className = "py-2.5 px-3 rounded-lg text-xs font-semibold bg-emerald-950/40 text-emerald-300 border border-emerald-700/60 hover:bg-emerald-900/60 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-950/20";
+        text.innerText = "Auto-Resequencing: ON";
+      } else {
+        btn.className = "py-2.5 px-3 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 transition-all flex items-center justify-center gap-1.5";
+        text.innerText = "Auto-Resequencing: OFF";
+      }
+    }
+
+    function resetSimulation() {
+      solarGenerationKW = 24.0;
+      busLoadKW = 9.0;
+      faultInjected = false;
+      autoResequence = true;
+      document.getElementById('sliderSolarGen').value = 24;
+      document.getElementById('sliderBusLoad').value = 9;
+      document.getElementById('valSolarGen').innerText = '24.0 kW (100% AM0)';
+      document.getElementById('valBusLoad').innerText = '9.0 kW (Low-Load Phase)';
+      
+      const btnF = document.getElementById('btnInjectFault');
+      btnF.className = "py-2.5 px-3 rounded-lg text-xs font-semibold bg-rose-950/40 text-rose-300 border border-rose-800 hover:bg-rose-900/60 transition-all flex items-center justify-center gap-1.5";
+      document.getElementById('btnFaultText').innerText = "Inject Leg 4 Hotspot";
+
+      const btnA = document.getElementById('btnAutonomous');
+      btnA.className = "py-2.5 px-3 rounded-lg text-xs font-semibold bg-emerald-950/40 text-emerald-300 border border-emerald-700/60 hover:bg-emerald-900/60 transition-all flex items-center justify-center gap-1.5";
+      document.getElementById('btnAutoText').innerText = "Auto-Resequencing: ON";
+
+      legTemps = [58, 59, 60, 61, 62, 60, 58, 57];
+      legHealth = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+      historyLabels = [];
+      historyLeg4Temp = [];
+      historyLegAvgTemp = [];
+    }
+
+    // --- 7. Execution Loop on Window Load ---
+    window.addEventListener('load', function() {
+      lucide.createIcons();
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+
+      initCharts();
+
+      // Physics + Render Loop (40ms = 25Hz)
+      setInterval(() => {
+        updatePhysicsModel();
+        drawHardwareSimulation();
+        if (tickCount % 3 === 0) {
+          updateCharts();
+        }
+      }, 40);
+
+      // Trigger initial MathJax pass
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise().catch(err => console.debug(err));
+      }
+    });
+  </script>
+</body>
+</html>
